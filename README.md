@@ -29,6 +29,7 @@ Luego visita `http://localhost:3000`.
 | `←` `→`   | Rotar nave |
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
+| `C`       | Cambiar skin de la nave |
 
 ## Puntuación
 
@@ -44,4 +45,7 @@ Luego visita `http://localhost:3000`.
 - Asteroides se parten en fragmentos más pequeños al ser destruidos
 - Partículas de explosión al destruir asteroides
 - Power-up **Velocidad**: aparece periódicamente en el mapa y duplica la velocidad de la nave durante 5 segundos (recogerlo de nuevo acumula tiempo)
+- Power-up **Triple Shot** (naranja): durante 5 segundos la nave dispara 3 balas en línea recta (recogerlo de nuevo acumula tiempo)
+- Power-up **Escudo** (cian): absorbe 2 golpes de asteroide durante 10 segundos; cada impacto destruye el asteroide y suma sus puntos
+- **Skins de nave**: tecla `C` para ciclar entre 5 siluetas; la elegida se guarda en `localStorage`
 - **Estrella fugaz**: asteroide especial amarillo a 200 px/s que dura 10 segundos y desaparece; se puede destruir (+150 puntos) sin partirse y no es letal para la nave
