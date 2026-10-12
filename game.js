@@ -185,7 +185,11 @@ class ShootingStar extends Asteroid {
 
 // ── Ship ──────────────────────────────────────────────────────────────────────
 // Skins: misma geometría de nariz (x≈20) para que NOSE de tryShoot() siga
-// siendo coherente; el hitbox (radius=12) no cambia con la skin.
+// siendo coherente. `scale` multiplica el tamaño visual y el hitbox; `pointMult`
+// multiplica los puntos obtenidos mientras se usa esa skin.
+const SHIP_RADIUS = 12;
+const SHIP_NOSE   = 21;
+
 const SKINS = [
   { name: 'CLÁSICA', stroke: '#fff',  flame: 'rgba(255, 130, 0, 0.85)',
     verts: [[20, 0], [-12, -9], [-7, 0], [-12, 9]] },
@@ -198,6 +202,9 @@ const SKINS = [
   { name: 'CAZA',    stroke: '#8f8', flame: 'rgba(140, 255, 120, 0.85)',
     verts: [[22, 0], [6, -5], [-2, -12], [-10, -6], [-8, 0],
             [-10, 6], [-2, 12], [6, 5]] },
+  // Nave morada: el doble de grande y otorga el doble de puntos.
+  { name: 'MORADA',  stroke: '#a855f7', flame: 'rgba(200, 80, 255, 0.85)',
+    verts: [[20, 0], [-12, -9], [-7, 0], [-12, 9]], scale: 2, pointMult: 2 },
 ];
 for (const s of SKINS) s.rearX = Math.min(...s.verts.map(v => v[0]));
 
@@ -217,6 +224,9 @@ function saveSkin() {
 
 let currentSkin = loadSkin();
 
+const skinScale = () => SKINS[currentSkin].scale || 1;
+const skinMult  = () => SKINS[currentSkin].pointMult || 1;
+
 class Ship {
   constructor() { this.reset(); }
 
@@ -226,7 +236,6 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
     this.thrusting       = false;
     this.invincible      = 3;
     this.shootCooldown   = 0;
@@ -236,6 +245,9 @@ class Ship {
     this.tripleShotTimer = 0;
     this.dead            = false;
   }
+
+  // El hitbox escala con el tamaño de la skin (la MORADA es el doble de grande).
+  get radius() { return SHIP_RADIUS * skinScale(); }
 
   update(dt) {
     if (this.dead) return;
@@ -274,7 +286,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = SHIP_NOSE * skinScale();
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     if (this.tripleShotTimer > 0) {
@@ -316,8 +328,9 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
+    ctx.scale(skin.scale || 1, skin.scale || 1);
     ctx.strokeStyle = skin.stroke;
-    ctx.lineWidth   = 1.5;
+    ctx.lineWidth   = 1.5 / (skin.scale || 1);
     ctx.lineJoin    = 'round';
 
     // Silueta de la skin activa
@@ -642,6 +655,11 @@ function explode(x, y, count = 8) {
   for (let i = 0; i < count; i++) particles.push(new Particle(x, y));
 }
 
+// Aplica el multiplicador de puntos de la skin activa (MORADA = x2)
+function addScore(base) {
+  score += base * skinMult();
+}
+
 function killShip() {
   explode(ship.x, ship.y, 14);
   ship.dead = true;
@@ -773,7 +791,7 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += POINTS[a.size];
+        addScore(POINTS[a.size]);
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
       }
@@ -788,7 +806,7 @@ function update(dt) {
       if (!s.dead && !b.dead && dist(b, s) < s.radius) {
         b.dead = true;
         s.dead = true;
-        score += STAR_POINTS;
+        addScore(STAR_POINTS);
         explode(s.x, s.y, 10);
       }
     }
@@ -807,7 +825,7 @@ function update(dt) {
             ship.shieldTimer = 0;
           }
           a.dead = true;
-          score += POINTS[a.size];
+          addScore(POINTS[a.size]);
           explode(a.x, a.y, a.size * 5);
           newAsteroidsFromShield.push(...a.split());
           break;
@@ -881,6 +899,14 @@ function drawHUD() {
     ctx.textAlign = 'left';
     ctx.fillStyle = '#4df';
     ctx.fillText(`ESCUDO ${ship.shieldHits}/${SHIELD_HITS_MAX}  ${ship.shieldTimer.toFixed(1)}s`, 14, hudY);
+    hudY += HUD_STEP;
+  }
+
+  // Aviso de bonus de puntos de la skin activa (MORADA x2)
+  if (skinMult() > 1) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = SKINS[currentSkin].stroke;
+    ctx.fillText(`PUNTOS x${skinMult()}`, 14, hudY);
     hudY += HUD_STEP;
   }
 
