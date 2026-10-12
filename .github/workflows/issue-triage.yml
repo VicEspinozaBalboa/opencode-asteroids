@@ -174,15 +174,50 @@ jobs:
             }
 
             labels = [...new Set(labels)]
+
+            // Respaldo determinista: si el modelo falló, clasificamos por palabras clave.
+            const texto = `${issue.title}\n${issue.body ?? ''}`.toLowerCase()
+            const reglas = [
+              {
+                label: 'bug',
+                re: /(error|fall[ao]|no funciona|no dispara|no se puede|se rompe|roto|crash|crashea|bug|problema|excepci[oó]n|pantalla en blanco)/,
+              },
+              {
+                label: 'documentation',
+                re: /(documentaci[oó]n|readme|docs|documentar|explicar)/,
+              },
+              {
+                label: 'enhancement',
+                re: /a[ñn]adir|agregar|nueva|nuevo|incrementar|aumentar|mejorar|mejora|soporte|feature|idea|ocupamos|podemos|ser[ií]a (genial|bueno|util)/,
+              },
+            ]
+            if (labels.length === 0) {
+              for (const regla of reglas) {
+                if (regla.re.test(texto)) labels.push(regla.label)
+              }
+            }
             if (labels.length === 0) labels = [FALLBACK_LABEL]
+
+            let fallo = false
             if (!triage) {
-              triage =
-                '> No se pudo generar el triage automático (el modelo no devolvió un resultado válido). Un mantenedor debería revisar este issue manualmente.'
+              triage = [
+                '> El modelo no devolvió un triage válido; se aplicó una clasificación por palabras clave.',
+                '',
+                '**Resumen**: revisar el issue y completar la información.',
+                '**Área afectada**: por determinar.',
+                '**Prioridad sugerida**: media.',
+                '**Información faltante**: pasos de reproducción, navegador y sistema operativo.',
+                '**Checklist de revisión**:',
+                '- [ ] Confirmar el comportamiento descrito.',
+                '- [ ] Localizar la causa en `game.js` / `index.html`.',
+              ].join('\n')
+              fallo = true
               if (raw) {
                 core.warning(`Salida cruda del modelo (primeros 1500 caracteres):\n${raw.slice(0, 1500)}`)
               } else {
                 core.warning('El modelo no devolvió ninguna salida de texto.')
               }
+              core.error(`Fallo el triage con IA. Etiquetas por respaldo: ${labels.join(', ')}`)
             }
             core.info(`Etiquetas aplicadas: ${labels.join(', ')}`)
 
@@ -193,11 +228,30 @@ jobs:
               labels,
             })
 
+            let depuracion = ''
+            if (fallo) {
+              // Incluye la salida cruda de opencode para poder diagnosticar desde el propio issue.
+              const leer = (archivo) => {
+                try {
+                  return fs.readFileSync(archivo, 'utf8').trim()
+                } catch {
+                  return ''
+                }
+              }
+              depuracion = [leer('raw.json'), leer('triage_error.log')]
+                .filter(Boolean)
+                .join('\n')
+                .slice(0, 3000)
+            }
+
             const original = issue.body ?? ''
             if (original.includes(MARKER)) {
               core.info('El issue ya tiene una sección de triage; no se vuelve a añadir.')
             } else {
-              const section = `\n\n<details>\n${MARKER}\n\n${triage}\n\n</details>\n`
+              const extra = depuracion
+                ? `\n\n<details>\n<summary>Salida cruda (depuración)</summary>\n\n\`\`\`\n${depuracion}\n\`\`\`\n\n</details>\n`
+                : ''
+              const section = `\n\n<details>\n${MARKER}\n\n${triage}\n${extra}\n</details>\n`
               await github.rest.issues.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
